@@ -1,0 +1,11 @@
+{
+  "name": "livep2000map",
+  "version": "1.0.0",
+  "description": "Live map of emergency events from Livep2000.nl",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Andrey Khranovsky <andrey.khranovsky@gmail.com>",
+  "license": "MIT"
+}

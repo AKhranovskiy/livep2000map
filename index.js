@@ -118,6 +118,13 @@ feedUpdatesEmitter.on('eventAdded', guid => {
     });
 })
 process.on('SIGINT', (sig) => {
-    setImmediate(() => clearInterval(checkTimer))
-    server.close()
+    setImmediate(() => {
+        clearInterval(checkTimer)
+        wss.clients.forEach(function each(client) {
+            if (client.readyState === WebSocket.OPEN) {
+                client.close(1012, "Server is down");
+            }
+        });
+        wss.close(() => server.close())
+    })
 })

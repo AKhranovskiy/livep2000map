@@ -40,14 +40,8 @@
 
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
-
-                var row = table.insertRow(1)
-                row.insertCell().textContent = data.guid
-                row.insertCell().textContent = data.pubDate
-                row.insertCell().textContent = data.title
-                row.insertCell().textContent = data.contentSnippet
-                row.insertCell().textContent = data.latitude
-                row.insertCell().textContent = data.longitude
+                var row = table.insertRow(1);
+                [data.guid, data.pubDate, data.title, data.contentSnippet, data.latitude, data.longitude].forEach(value => row.insertCell().textContent = value);
             };
         })();
     </script>

@@ -1,3 +1,12 @@
+'use strict';
+
+const express = require('express');
+const path = require('path');
+const {
+    createServer
+} = require('http');
+const WebSocket = require('ws');
+
 const https = require('https');
 const EventEmitter = require('events');
 const Parser = require('rss-parser');
@@ -14,7 +23,7 @@ feedUpdatesEmitter.on('check', () => {
     https.request(FEED_URL, {
         method: "HEAD"
     }, (res) => {
-        etag = res.headers.etag
+        const etag = res.headers.etag
         if (lastETag != etag) {
             console.log('has updates, %s != %s', lastETag, etag)
             lastETag = etag
@@ -32,7 +41,7 @@ feedUpdatesEmitter.on('hasUpdate', () => {
     https.request(FEED_URL, {
         method: "GET"
     }, (res) => {
-        etag = res.headers.etag
+        var etag = res.headers.etag
         lastETag = etag
         console.log('Downloaded %d bytes', parseInt(res.headers['content-length'], 10))
         var rawData = '';
@@ -62,11 +71,9 @@ feedUpdatesEmitter.on('update', async (data) => {
 });
 
 feedUpdatesEmitter.emit('hasUpdate')
-checkTimer = setInterval(() => feedUpdatesEmitter.emit('check'), 5 * 1000)
 
-process.on('SIGINT', (sig) => {
-    setImmediate(() => clearInterval(checkTimer))
-})
+var checkTimer = setInterval(() => feedUpdatesEmitter.emit('check'), 5 * 1000)
+
 
 process.on('exit', (code) => {
     console.log('Process exit event with code: ', code);
@@ -82,8 +89,35 @@ feedUpdatesEmitter.on('item', item => {
     }
 })
 
+const app = express();
+app.use(express.static(path.join(__dirname, '/public')));
+
+const server = createServer(app);
+const wss = new WebSocket.Server({
+    server
+});
+
+server.listen(8080, function () {
+    console.log('Listening on http://localhost:8080');
+});
+
+wss.on('connection', function connection(ws) {
+    for (let ev of items.values()) {
+        ws.send(JSON.stringify(ev))
+    }
+});
+
 feedUpdatesEmitter.on('eventAdded', guid => {
-    ev = items.get(guid)
+    const ev = items.get(guid)
     console.log('New event recoreded %s on %s at %s:%s',
         guid, ev.pubDate, ev.latitude || 'X', ev.longitude || 'Y')
+    wss.clients.forEach(function each(client) {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(ev));
+        }
+    });
+})
+process.on('SIGINT', (sig) => {
+    setImmediate(() => clearInterval(checkTimer))
+    server.close()
 })

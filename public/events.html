@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Events</title>
+    <style>
+        table,
+        td {
+            border: 1px solid #333;
+        }
+
+        thead {
+            background-color: #333;
+            color: #fff;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Events</h1>
+    <table id='events'>
+        <thead>
+            <tr>
+                <th>GUID</th>
+                <th>PubDate</th>
+                <th>Title</th>
+                <th>Description</th>
+                <th>Latitude</th>
+                <th>Longitude</th>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+    <script>
+        (function() {
+            const table = document.getElementById("events");
+            const ws = new WebSocket(`ws://${location.host}`);
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+
+                var row = table.insertRow(1)
+                row.insertCell().textContent = data.guid
+                row.insertCell().textContent = data.pubDate
+                row.insertCell().textContent = data.title
+                row.insertCell().textContent = data.contentSnippet
+                row.insertCell().textContent = data.latitude
+                row.insertCell().textContent = data.longitude
+            };
+        })();
+    </script>
+</body>
+
+</html>

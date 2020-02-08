@@ -103,12 +103,21 @@
                     marker.bindPopup('<h3>' + data.title + '</h3><h4>' + data.pubDate + '</h4>' + data.content)
                     markers.push(marker)
 
-                    if (showEvent) {
-                        mymap.setView([lat, lon], 13, {
-                            duration: 1
-                        })
-                        marker.openPopup();
+                    const maxVisibleMarkers = 10;
+                    if (markers.length > maxVisibleMarkers) {
+                      const outdatedMarkersCount = markers.length - maxVisibleMarkers;
+                      console.log('Found %d outdated markers', outdatedMarkersCount);
+                      markers.splice(0, outdatedMarkersCount).forEach(marker => {
+                        marker.closePopup();
+                        marker.remove();
+                      })
                     }
+                  if (showEvent) {
+                      mymap.setView([lat, lon], 13, {
+                          duration: 1
+                      })
+                      marker.openPopup();
+                  }
                 }
             };
         })();

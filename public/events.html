@@ -88,36 +88,54 @@
                 id: 'mapbox/streets-v11',
                 accessToken: 'pk.eyJ1IjoiYWtocmFub3Zza3kiLCJhIjoiY2s2Yzg1anV5MGZlYzNmc2JtZ292Nnd1cSJ9.CF3ONuu42jp1A1VnJgzfxQ'
             }).addTo(mymap);
+
             var markers = new Array()
             var lastUpdate = Date.now()
+
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
                 var row = table.insertRow(1);
                 [data.guid, data.pubDate, data.title, data.contentSnippet, data.latitude, data.longitude].forEach(value => row.insertCell().textContent = value);
+
                 var showEvent = (Date.now() - lastUpdate) > 2000;
                 lastUpdate = Date.now()
+
                 var lat = parseFloat(data.latitude)
                 var lon = parseFloat(data.longitude)
                 if (lat && lon) {
+                    const popupContent = '<h3>' + data.title + '</h3><h4>' + data.pubDate + '</h4>' + data.content;
                     var marker = L.marker([lat, lon]).addTo(mymap);
-                    marker.bindPopup('<h3>' + data.title + '</h3><h4>' + data.pubDate + '</h4>' + data.content)
-                    markers.push(marker)
+                    marker.bindPopup(popupContent);
+                    marker.guid = data.guid;
+                    markers.push(marker);
 
                     const maxVisibleMarkers = 10;
                     if (markers.length > maxVisibleMarkers) {
-                      const outdatedMarkersCount = markers.length - maxVisibleMarkers;
-                      console.log('Found %d outdated markers', outdatedMarkersCount);
-                      markers.splice(0, outdatedMarkersCount).forEach(marker => {
-                        marker.closePopup();
-                        marker.remove();
-                      })
+                        const outdatedMarkersCount = markers.length - maxVisibleMarkers;
+                        markers.splice(0, outdatedMarkersCount).forEach(marker => {
+                            marker.closePopup();
+                            marker.remove();
+                        })
                     }
-                  if (showEvent) {
-                      mymap.setView([lat, lon], 13, {
-                          duration: 1
-                      })
-                      marker.openPopup();
-                  }
+
+                    if (showEvent) {
+                        mymap.setView([lat, lon], 13, {
+                            duration: 1
+                        })
+                        marker.openPopup();
+                    }
+
+                    row.onclick = () => {
+                        mymap.setView([lat, lon], 13, {
+                            duration: 1
+                        })
+                        var attachedMarker = markers.find(m => m.guid == data.guid)
+                        if (attachedMarker !== undefined) {
+                            attachedMarker.openPopup();
+                        } else {
+                            mymap.openPopup(L.popup().setLatLng([lat, lon]).setContent(popupContent));
+                        }
+                    };
                 }
             };
         })();

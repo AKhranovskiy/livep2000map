@@ -116,7 +116,8 @@
                 if (event.originalEvent.altKey && altMouseDown !== null) {
                     const distance = mymap.distance(event.latlng, altMouseDown.latlng);
                     mymap.dragging.disable();
-                    circleMarker.setRadius(distance);
+                    circleMarker.setLatLng(L.latLngBounds(event.latlng, altMouseDown.latlng).getCenter())
+                    circleMarker.setRadius(distance / 2);
                 } else {
                     mymap.dragging.enable();
                 }

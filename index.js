@@ -97,8 +97,8 @@ const wss = new WebSocket.Server({
     server
 });
 
-server.listen(8080, function () {
-    console.log('Listening on http://localhost:8080');
+server.listen(process.env.PORT, function () {
+    console.log('Listening on http://localhost:%d', process.env.PORT);
 });
 
 wss.on('connection', function connection(ws) {

@@ -124,9 +124,10 @@
             });
             mymap.on('mouseup', event => {
                 if (altMouseDown !== null) {
-                    const radius = mymap.distance(altMouseDown.latlng, event.latlng);
+                    const radius = circleMarker.getRadius();
+                    const center = circleMarker.getLatLng();
                     markers.forEach(m => {
-                        if (m.latlng.distanceTo(altMouseDown.latlng) >= radius) {
+                        if (m.latlng.distanceTo(center) >= radius) {
                             m.remove();
                         } else {
                             m.addTo(mymap);
@@ -134,6 +135,8 @@
                     });
                     altMouseDown = null;
 
+                    document.location.href = document.location.href.split('#')[0] + '#' + center.lat.toFixed(5) + ',' +
+                        center.lng.toFixed(5) + ',' + circleMarker.getRadius().toFixed();
                 }
             });
             ws.onmessage = function(event) {
@@ -189,6 +192,29 @@
                     };
                 }
             };
+
+            {
+                const parts = document.location.href.split('#');
+                if (parts.length > 1) {
+                    const params = parts[1].split(',');
+                    if (params.length == 3) {
+                        const lat = parseFloat(params.shift());
+                        const lng = parseFloat(params.shift());
+                        const radius = parseInt(params.shift());
+                        console.log('Circle params: %f,%f,%d', lat, lng, radius);
+                        if (!isNaN(lat) && !isNaN(lng) && radius > 100) {
+                            circleMarker = L.circle([lat, lng], radius).addTo(mymap);
+                            circleMarker.on('dblclick', () => {
+                                circleMarker.remove();
+                                markers.forEach(m => m.addTo(mymap));
+                                circleMarker = null;
+                            });
+                            mymap.flyToBounds(circleMarker.getBounds());
+                        }
+                    }
+
+                }
+            }
         })();
     </script>
 </body>

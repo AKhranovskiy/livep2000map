@@ -92,6 +92,49 @@
             var markers = new Array()
             var lastUpdate = Date.now()
 
+            var altMouseDown = null;
+            var circleMarker = null;
+
+            mymap.on('mousedown', event => {
+                if (event.originalEvent.altKey) {
+                    altMouseDown = event;
+
+                    if (circleMarker !== null) {
+                        circleMarker.removeFrom(mymap)
+                        circleMarker = null;
+                    }
+                    circleMarker = L.circle(event.latlng).addTo(mymap);
+                    circleMarker.on('dblclick', () => {
+                        circleMarker.remove();
+                        markers.forEach(m => m.addTo(mymap));
+                        circleMarker = null;
+                    });
+                    markers.forEach(m => m.addTo(mymap));
+                }
+            });
+            mymap.on('mousemove', event => {
+                if (event.originalEvent.altKey && altMouseDown !== null) {
+                    const distance = mymap.distance(event.latlng, altMouseDown.latlng);
+                    mymap.dragging.disable();
+                    circleMarker.setRadius(distance);
+                } else {
+                    mymap.dragging.enable();
+                }
+            });
+            mymap.on('mouseup', event => {
+                if (altMouseDown !== null) {
+                    const radius = mymap.distance(altMouseDown.latlng, event.latlng);
+                    markers.forEach(m => {
+                        if (m.latlng.distanceTo(altMouseDown.latlng) >= radius) {
+                            m.remove();
+                        } else {
+                            m.addTo(mymap);
+                        }
+                    });
+                    altMouseDown = null;
+
+                }
+            });
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
                 var row = table.insertRow(1);
@@ -104,9 +147,15 @@
                 var lon = parseFloat(data.longitude)
                 if (lat && lon) {
                     const popupContent = '<h3>' + data.title + '</h3><h4>' + data.pubDate + '</h4>' + data.content;
-                    var marker = L.marker([lat, lon]).addTo(mymap);
+                    var marker = L.marker([lat, lon]);
                     marker.bindPopup(popupContent);
                     marker.guid = data.guid;
+                    marker.latlng = L.latLng(lat, lon);
+
+                    if (circleMarker === null || circleMarker.getLatLng().distanceTo(marker.latlng) <= circleMarker.getRadius()) {
+                        marker.addTo(mymap);
+                    }
+
                     markers.push(marker);
 
                     const maxVisibleMarkers = 10;
@@ -118,7 +167,8 @@
                         })
                     }
 
-                    if (showEvent) {
+                    if (showEvent && (circleMarker === null || circleMarker.getLatLng().distanceTo(marker.latlng) <=
+                            circleMarker.getRadius())) {
                         mymap.setView([lat, lon], 13, {
                             duration: 1
                         })
@@ -130,7 +180,7 @@
                             duration: 1
                         })
                         var attachedMarker = markers.find(m => m.guid == data.guid)
-                        if (attachedMarker !== undefined) {
+                        if (attachedMarker !== undefined || !attachedMarker.hasLayer()) {
                             attachedMarker.openPopup();
                         } else {
                             mymap.openPopup(L.popup().setLatLng([lat, lon]).setContent(popupContent));

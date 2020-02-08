@@ -16,29 +16,64 @@
         }
 
         #mapid {
-            height: 400px;
+            height: 95vh;
+        }
+
+        #eventview {
+            overflow: scroll;
+            height: 95vh;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        /* Create two unequal columns that floats next to each other */
+        .column {
+            float: left;
+            padding: 10px;
+        }
+
+        .left {
+            width: 55%;
+        }
+
+        .right {
+            width: 45%;
+        }
+
+        /* Clear floats after the columns */
+        .row:after {
+            content: "";
+            display: table;
+            clear: both;
         }
     </style>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ==" crossorigin="" />
 </head>
 
 <body>
-    <h1>Events</h1>
-    <div id="mapid"></div>
-    <table id='events'>
-        <thead>
-            <tr>
-                <th>GUID</th>
-                <th>PubDate</th>
-                <th>Title</th>
-                <th>Description</th>
-                <th>Latitude</th>
-                <th>Longitude</th>
-            </tr>
-        </thead>
-        <tbody>
-        </tbody>
-    </table>
+    <div class="row">
+        <div class="column left" id="mapview">
+            <div id="mapid"></div>
+        </div>
+        <div class="column right" id="eventview">
+            <table id='events'>
+                <thead>
+                    <tr>
+                        <th>GUID</th>
+                        <th>PubDate</th>
+                        <th>Title</th>
+                        <th>Description</th>
+                        <th>Latitude</th>
+                        <th>Longitude</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+    </div>
     <!-- Make sure you put this AFTER Leaflet's CSS -->
     <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js" integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew==" crossorigin=""></script>
     <script>

@@ -2,7 +2,7 @@
 
 const https = require('https');
 const functions = require('firebase-functions');
-const parser = require('rss-parser');
+const Parser = require('rss-parser');
 const util = require('util')
 const admin = require('firebase-admin');
 
@@ -81,9 +81,42 @@ exports.checkrssfeed = functions.region('europe-west1').https.onRequest((request
     })
 });
 
-exports.onFeedEtagChange = functions.firestore
-    .document('service/rssfeed').onUpdate((change, context) => {
-        const etag = change.after.data()['etag'];
-        console.log('RSS Feed updated at %s, etag=%s', context.timestamp, etag);
-        return Promise.resolve();
-    });
+async function parseRssFeed(data) {
+    console.log('Parse RSS Feed, %d bytes', data.length);
+    return await new Parser({
+        customFields: {
+            item: [
+                ['geo:lat', 'latitude'],
+                ['geo:long', 'longitude']
+            ]
+        }
+    }).parseString(data);
+};
+
+const downloadFeed = (url, resolve, reject) => {
+    https.request(url, {
+        method: "GET"
+    }, (res) => {
+        var rawData = '';
+        res.on('data', (chunk) => {
+            rawData += chunk
+        });
+        res.on('end', () => resolve(rawData));
+    }).on('error', (e) => {
+        console.error(e);
+        reject(e);
+    }).end();
+}
+
+exports.onFeedEtagChange = functions.firestore.document('service/rssfeed').onUpdate((change, context) => {
+    const etag = change.after.data()['etag'];
+    console.log('RSS Feed updated at %s, etag=%s', context.timestamp, etag);
+
+    return new Promise((resolve, reject) => downloadFeed(FEED_URL, resolve, reject))
+        .then(async data => {
+            const feed = await parseRssFeed(data);
+            feed.items.reverse().forEach(item => {
+                console.log('Add item %s', item.guid);
+            });
+        });
+});

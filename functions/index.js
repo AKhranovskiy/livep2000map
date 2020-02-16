@@ -26,15 +26,22 @@ const lazy = function (creator) {
 };
 
 const getStorageDb = lazy(() => {
-    admin.initializeApp(functions.config().firebase);
-    return admin.firestore;
+    console.log('Init storage db');
+    admin.initializeApp({
+        credential: admin.credential.applicationDefault(),
+        databaseURL: 'https://livep2000bot.firebaseio.com'
+    });
+    return admin.firestore();
 });
 
 const writeEtagToStorage = etag => {
-  getStorageDb().collection('service').doc('rssfeed').set({
-    date: Date.now(),
-    etag: etag
-  });
+    const db = getStorageDb();
+    const service = db.collection('service');
+    const rssfeed = service.doc('rssfeed');
+    rssfeed.set({
+        date: Date.now(),
+        etag: etag
+    });
 };
 
 exports.checkrssfeed = functions.region('europe-west1').https.onRequest((request, response) => {
@@ -74,3 +81,14 @@ exports.checkrssfeed = functions.region('europe-west1').https.onRequest((request
         }).end();
     })
 });
+
+exports.onFeedEtagChange = functions.firestore
+    .document('service/rssfeed').onWrite((change, context) => {
+      const etag = change => change.data()['etag'];
+      const oldEtag = etag(change.before);
+      const newEtag = etag(change.after);
+      if (oldEtag != newEtag) {
+        console.log('RSS Feed updated at %s\n%s != %s', change.after.data()['date'], oldEtag, newEtag);
+      }
+      return Promise.resolve();
+    });

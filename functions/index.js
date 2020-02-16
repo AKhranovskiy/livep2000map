@@ -115,8 +115,15 @@ exports.onFeedEtagChange = functions.firestore.document('service/rssfeed').onUpd
     return new Promise((resolve, reject) => downloadFeed(FEED_URL, resolve, reject))
         .then(async data => {
             const feed = await parseRssFeed(data);
+            let batch = getStorageDb().batch();
+            let events = getStorageDb().collection('events');
+            const setOpt = {merge: true};
             feed.items.reverse().forEach(item => {
-                console.log('Add item %s', item.guid);
+                batch.set(events.doc(item.guid), item, setOpt);
+            });
+            return batch.commit().then(() => {
+                console.log('All events are added');
+                return Promise.resolve();
             });
         });
 });

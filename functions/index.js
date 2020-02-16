@@ -39,7 +39,6 @@ const writeEtagToStorage = etag => {
     const service = db.collection('service');
     const rssfeed = service.doc('rssfeed');
     rssfeed.set({
-        date: Date.now(),
         etag: etag
     });
 };
@@ -83,12 +82,8 @@ exports.checkrssfeed = functions.region('europe-west1').https.onRequest((request
 });
 
 exports.onFeedEtagChange = functions.firestore
-    .document('service/rssfeed').onWrite((change, context) => {
-      const etag = change => change.data()['etag'];
-      const oldEtag = etag(change.before);
-      const newEtag = etag(change.after);
-      if (oldEtag != newEtag) {
-        console.log('RSS Feed updated at %s\n%s != %s', change.after.data()['date'], oldEtag, newEtag);
-      }
-      return Promise.resolve();
+    .document('service/rssfeed').onUpdate((change, context) => {
+        const etag = change.after.data()['etag'];
+        console.log('RSS Feed updated at %s, etag=%s', context.timestamp, etag);
+        return Promise.resolve();
     });

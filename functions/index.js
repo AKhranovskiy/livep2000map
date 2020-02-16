@@ -127,3 +127,8 @@ exports.onFeedEtagChange = functions.firestore.document('service/rssfeed').onUpd
             });
         });
 });
+
+exports.onNewEventAdded = functions.firestore.document('events/{eventGuid}')
+    .onWrite((change, context) => {
+      console.log('New event added, guid=%s', context.params.eventGuid);
+    });

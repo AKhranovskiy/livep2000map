@@ -4,6 +4,7 @@ const https = require('https');
 const functions = require('firebase-functions');
 const parser = require('rss-parser');
 const util = require('util')
+const admin = require('firebase-admin');
 
 const FEED_URL = 'https://feeds.livep2000.nl/';
 
@@ -15,6 +16,27 @@ const getClientIp = req => {
         '127.0.0.1'
 };
 
+
+const lazy = function (creator) {
+    let res = null;
+    return function () {
+        if (res === null) res = creator.apply(this, arguments);
+        return res;
+    };
+};
+
+const getStorageDb = lazy(() => {
+    admin.initializeApp(functions.config().firebase);
+    return admin.firestore;
+});
+
+const writeEtagToStorage = etag => {
+  getStorageDb().collection('service').doc('rssfeed').set({
+    date: Date.now(),
+    etag: etag
+  });
+};
+
 exports.checkrssfeed = functions.region('europe-west1').https.onRequest((request, response) => {
     const isLocalEnv = process.env.GCP_PROJECT === undefined;
     const config = functions.config() || {};
@@ -23,7 +45,7 @@ exports.checkrssfeed = functions.region('europe-west1').https.onRequest((request
     if (!isLocalEnv && crontabAuth === null) {
         console.critical('Authentication is not set. All requests are rejected');
         response.status(401).send('No service')
-        return;
+        return Promise.resolve();
     }
 
     const auth = request.query['auth'] || null;
@@ -31,10 +53,11 @@ exports.checkrssfeed = functions.region('europe-west1').https.onRequest((request
     if (crontabAuth !== null && (auth === null || auth !== crontabAuth)) {
         console.log('Unauthorized request has been rejected, auth=%s, ip=%s', auth, getClientIp(request))
         response.status(401).send('No service')
-        return;
+        return Promise.resolve();
     }
 
     console.log('Authorized request from ip=%s', getClientIp(request))
+
     return new Promise((resolve, reject) => {
         https.request(FEED_URL, {
             method: "HEAD"
@@ -42,6 +65,7 @@ exports.checkrssfeed = functions.region('europe-west1').https.onRequest((request
             const etag = res.headers.etag
             console.log('Feed ETag %s', etag)
             response.status(200).send(util.format('ETag %s', etag))
+            writeEtagToStorage(etag);
             res.on('end', () => resolve())
         }).on('error', (e) => {
             console.error(e);

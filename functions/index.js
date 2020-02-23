@@ -6,6 +6,7 @@ const Parser = require('rss-parser');
 const util = require('util')
 const admin = require('firebase-admin');
 const querystring = require('querystring');
+const geolib = require('geolib');
 
 const FEED_URL = 'https://feeds.livep2000.nl/';
 
@@ -113,31 +114,40 @@ const downloadFeed = (url, resolve, reject) => {
 }
 
 // TODO Add initial events
-exports.onFeedEtagChange = functions.region('europe-west1').firestore.document('service/rssfeed').onUpdate((change, context) => {
+exports.onFeedEtagChange = functions.region('europe-west1').firestore.document('service/rssfeed').onWrite((change, context) => {
+    const oldEtag = change.before.data() && change.before.data()['etag'] || null;
     const etag = change.after.data()['etag'];
-    console.log('RSS Feed updated at %s, etag=%s', context.timestamp, etag);
 
-    return new Promise((resolve, reject) => downloadFeed(FEED_URL, resolve, reject))
-        .then(async data => {
-            const feed = await parseRssFeed(data);
-            let batch = getStorageDb().batch();
-            let events = getStorageDb().collection('events');
-            const setOpt = {
-                merge: true
-            };
-            feed.items.reverse().forEach(item => {
-                batch.set(events.doc(item.guid), item, setOpt);
+    if (etag != oldEtag) {
+        console.log('RSS Feed updated at %s, etag=%s', context.timestamp, etag);
+
+        return new Promise((resolve, reject) => downloadFeed(FEED_URL, resolve, reject))
+            .then(async data => {
+                const feed = await parseRssFeed(data);
+                let batch = getStorageDb().batch();
+                let events = getStorageDb().collection('events');
+                const setOpt = {
+                    merge: true
+                };
+                feed.items.reverse().forEach(event => {
+                    event.timestamp = Date.parse(event.isoDate);
+                    if (event.latitude && event.longitude) {
+                        event.geoLocation = new admin.firestore.GeoPoint(parseFloat(event.latitude), parseFloat(event.longitude))
+                    }
+                    batch.set(events.doc(event.guid), event, setOpt);
+                });
+                return batch.commit();
+            }).then(() => {
+                console.log('All events are added');
+                return Promise.resolve();
             });
-            return batch.commit();
-        }).then(() => {
-            console.log('All events are added');
-            return Promise.resolve();
-        });
+    }
 });
 
 exports.onNewEventAdded = functions.region('europe-west1').firestore.document('events/{eventGuid}')
-    .onWrite((change, context) => {
+    .onCreate((change, context) => {
         console.log('New event added, guid=%s', context.params.eventGuid);
+      return null;
     });
 
 const getTelegramBotApiEndpoint = lazy(() => {
@@ -165,14 +175,15 @@ const sendTgMessage = (chatId, text) => {
 };
 
 exports.telegramBotUpdate = functions.region('europe-west1').https.onRequest((request, response) => {
-    response.status(200).end();
+    response.setHeader('Content-Type', 'application/json');
 
     const isTelegramMessage = request.body &&
         request.body.message &&
         request.body.message.chat &&
         request.body.message.chat.id &&
         request.body.message.from &&
-        request.body.message.from.id;
+        request.body.message.from.id &&
+        request.body.message.date;
 
     if (!isTelegramMessage) {
         console.error("Invalid request");
@@ -180,11 +191,33 @@ exports.telegramBotUpdate = functions.region('europe-west1').https.onRequest((re
         return Promise.reject();
     }
 
-    const location = request.body.message.location;
-    if (location) {
+        const location = request.body.message.location;
+    if (request.body.message.location) {
         console.log("Requested updates for location %s:%s", location.latitude, location.longitude);
-    }
+        const radius = 10000; // meters
+        const timestamp = request.body.message.date - 30 * 60;
+        const center = {lat: parseFloat(location.latitude), lon: parseFloat(location.longitude)};
+        console.log(new Date(timestamp * 1000).toLocaleString())
 
+        return getStorageDb().collection('events')
+            .where('timestamp', '>=', timestamp)
+            .get()
+            .then(snapshot => {
+              const events = snapshot.docs.map(doc => doc.data())
+              .filter(event => event.geoLocation)
+              .filter(event => geolib.isPointWithinRadius([parseFloat(location.latitude), parseFloat(location.longitude)],
+                [parseFloat(event.latitude), parseFloat(event.longitude)], radius))
+                .map(event => {event.distance = geolib.getDistance([parseFloat(location.latitude), parseFloat(location.longitude)],
+                [parseFloat(event.latitude), parseFloat(event.longitude)]); return event;});
+              console.log('Found %d events', events.length);
+              response.send(JSON.stringify(events));
+            })
+            .catch(err => {
+                console.log('Error getting documents', err);
+                response.send(JSON.stringify({'error': err}));
+            });
+    }
+    response.end();
     return Promise.resolve();
     //const msg = util.format("Message from %s/%s: %s", request.body.message.chat.id, request.body.message.from.first_name,
     //request.body.message.text);
